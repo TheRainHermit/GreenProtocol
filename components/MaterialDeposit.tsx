@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Leaf, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatGseedAmount } from '@/lib/wallet-utils';
-import CameraOverlay from './CameraOverlay';
+//import CameraOverlay from './CameraOverlay';
 
 interface MaterialDepositProps {
   wallet: Wallet;
@@ -204,10 +204,10 @@ export default function MaterialDeposit({ wallet, onTransactionAdded }: Material
         </CardHeader>
         <CardContent>
           {/* Overlay de la cámara (consumirá el stream MJPEG del backend) */}
-          <CameraOverlay
+          {/* <CameraOverlay
             backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL}
             walletAddress={wallet.wallet_address}
-          />
+          /> */}
           <div className="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-lg p-4 mb-6">
             <p className="text-sm text-emerald-800">
               <strong>ℹ️ Simulación de Hardware:</strong> En un punto de recolección real, el hardware identifica automáticamente el material. Aquí puedes simular ese proceso seleccionando el tipo de residuo depositado.

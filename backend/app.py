@@ -17,23 +17,23 @@ import supabase
 from dotenv import load_dotenv
 load_dotenv()
 
-# Permitir clases necesarias para cargar el modelo YOLO personalizado
-torch.serialization.add_safe_globals([
-    DetectionModel, Sequential, Conv, Conv2d, BatchNorm2d, SiLU, C3, C2f, C3k2
-])
+# # Permitir clases necesarias para cargar el modelo YOLO personalizado
+# torch.serialization.add_safe_globals([
+#     DetectionModel, Sequential, Conv, Conv2d, BatchNorm2d, SiLU, C3, C2f, C3k2
+# ])
 
-# Cargar el modelo avanzado
-model = YOLO(r'runs/detect/train/weights/best.pt')
+# # Cargar el modelo avanzado
+# model = YOLO(r'runs/detect/train/weights/best.pt')
 
-# Inicializar la cámara
-cap = cv2.VideoCapture(0)
+# # Inicializar la cámara
+# cap = cv2.VideoCapture(0)
 
 app = Flask(__name__)
 CORS(app)
 
-frame_lock = threading.Lock()
-latest_frame = None
-latest_prediction = {"material": None, "confidence": None}
+# frame_lock = threading.Lock()
+# latest_frame = None
+# latest_prediction = {"material": None, "confidence": None}
 
 # --- Mapeo de materiales a recompensa ---
 MATERIAL_REWARD = {
@@ -87,7 +87,8 @@ def send_greenseed(to_address, amount):
     return tx_hash.hex()
 
 # --- Configuración de contrato PYUSD ---
-PYUSD_CONTRACT_ADDRESS = "0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9"  # Reemplaza con la dirección completa
+PYUSD_CONTRACT_ADDRESS = "0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9"
+PYUSD_CONTRACT_ADDRESS = Web3.to_checksum_address(PYUSD_CONTRACT_ADDRESS)
 PYUSD_ABI = [
     {
         "constant": False,
@@ -117,75 +118,78 @@ def send_pyusd(to_address, amount_pyusd):
     tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
     return tx_hash.hex()
 
-def capture_frames():
-    global latest_frame, latest_prediction
-    while True:
-        success, frame = cap.read()
-        if not success:
-            continue
-        results = model(frame)
-        annotated_frame = results[0].plot()
-        with frame_lock:
-            latest_frame = annotated_frame
-            if results[0].boxes and len(results[0].boxes) > 0:
-                best_box = max(results[0].boxes, key=lambda b: b.conf)
-                material = results[0].names[int(best_box.cls)]
-                confidence = float(best_box.conf)
-                latest_prediction = {"material": material, "confidence": confidence}
-            else:
-                latest_prediction = {"material": None, "confidence": None}
+# def capture_frames():
+#     global latest_frame, latest_prediction
+#     while True:
+#         success, frame = cap.read()
+#         if not success:
+#             continue
+#         results = model(frame)
+#         annotated_frame = results[0].plot()
+#         with frame_lock:
+#             latest_frame = annotated_frame
+#             if results[0].boxes and len(results[0].boxes) > 0:
+#                 best_box = max(results[0].boxes, key=lambda b: b.conf)
+#                 material = results[0].names[int(best_box.cls)]
+#                 confidence = float(best_box.conf)
+#                 latest_prediction = {"material": material, "confidence": confidence}
+#             else:
+#                 latest_prediction = {"material": None, "confidence": None}
 
-def gen_frames():
-    while True:
-        with frame_lock:
-            frame = latest_frame
-        if frame is not None:
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+# def gen_frames():
+#     while True:
+#         with frame_lock:
+#             frame = latest_frame
+#         if frame is not None:
+#             ret, buffer = cv2.imencode('.jpg', frame)
+#             frame_bytes = buffer.tobytes()
+#             yield (b'--frame\r\n'
+#                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
-@app.route('/video_feed')
-def video_feed():
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+# @app.route('/video_feed')
+# def video_feed():
+#     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+# @app.route('/predict')
+# def predict():
+#     with frame_lock:
+#         return jsonify(latest_prediction)
 @app.route('/predict')
 def predict():
-    with frame_lock:
-        return jsonify(latest_prediction)
+    return jsonify({"material": None, "confidence": None})
 
-@app.route('/deposit', methods=['POST'])
-def deposit():
-    data = request.get_json()
-    material = data.get("material")
-    wallet = data.get("wallet")
+# @app.route('/deposit', methods=['POST'])
+# def deposit():
+#     data = request.get_json()
+#     material = data.get("material")
+#     wallet = data.get("wallet")
 
-    if not material or not wallet or material not in MATERIAL_REWARD:
-        return jsonify({"success": False, "error": "Datos inválidos"}), 400
+#     if not material or not wallet or material not in MATERIAL_REWARD:
+#         return jsonify({"success": False, "error": "Datos inválidos"}), 400
 
-    gseed_amount = MATERIAL_REWARD[material]
+#     gseed_amount = MATERIAL_REWARD[material]
 
-    # Realiza la transacción de GREENSEED y obtiene el hash
-    try:
-        tx_hash = send_greenseed(wallet, gseed_amount)
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+#     # Realiza la transacción de GREENSEED y obtiene el hash
+#     try:
+#         tx_hash = send_greenseed(wallet, gseed_amount)
+#     except Exception as e:
+#         return jsonify({"success": False, "error": str(e)}), 500
 
-    # Guarda el depósito en gseed_transactions
-    result = supabase_client.table("gseed_transactions").insert({
-        "wallet_id": wallet,
-        "material_type": material,
-        "gseed_amount": gseed_amount,
-        "transaction_hash": tx_hash
-    }).execute()
+#     # Guarda el depósito en gseed_transactions
+#     result = supabase_client.table("gseed_transactions").insert({
+#         "wallet_id": wallet,
+#         "material_type": material,
+#         "gseed_amount": gseed_amount,
+#         "transaction_hash": tx_hash
+#     }).execute()
 
-    return jsonify({
-        "success": True,
-        "material": material,
-        "gseed_amount": gseed_amount,
-        "transaction_hash": tx_hash,
-        "db_result": result.data
-    })
+#     return jsonify({
+#         "success": True,
+#         "material": material,
+#         "gseed_amount": gseed_amount,
+#         "transaction_hash": tx_hash,
+#         "db_result": result.data
+#     })
 
 @app.route('/swap', methods=['POST'])
 def swap_gseed_to_pyusd():
@@ -235,7 +239,11 @@ def send_gseed_endpoint():
     if not to_address or not amount or float(amount) <= 0:
         return jsonify({"success": False, "error": "Datos inválidos"}), 400
 
+    if not Web3.is_address(to_address):
+        return jsonify({"success": False, "error": "Dirección inválida"}), 400
+
     try:
+        print(f"Enviando {amount} GSEED a {to_address}")
         amount_wei = int(float(amount) * (10 ** 18))
         nonce = w3.eth.get_transaction_count(backend_wallet.address)
         tx = greenseed_contract.functions.transfer(to_address, amount_wei).build_transaction({
@@ -246,6 +254,7 @@ def send_gseed_endpoint():
         })
         signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
         tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        print("Transacción enviada:", tx_hash.hex())
         return jsonify({
             "success": True,
             "to_address": to_address,
@@ -253,10 +262,11 @@ def send_gseed_endpoint():
             "tx_hash": tx_hash.hex()
         })
     except Exception as e:
+        print("Error en send_gseed:", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 # Inicia el thread de captura al arrancar el servidor
 if __name__ == "__main__":
-    t = threading.Thread(target=capture_frames, daemon=True)
-    t.start()
+    # t = threading.Thread(target=capture_frames, daemon=True)
+    # t.start()
     app.run(host="0.0.0.0", port=5000)
