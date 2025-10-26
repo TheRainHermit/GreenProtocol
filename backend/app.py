@@ -67,7 +67,7 @@ GREENSEED_ABI = [
         "type": "function"
     }
 ]
-PRIVATE_KEY = os.getenv("BACKEND_PRIVATE_KEY")  # Usa variable de entorno segura
+PRIVATE_KEY = os.getenv("BACKEND_COINBASE_PRIVATE_KEY")  # Usa variable de entorno segura
 
 w3 = Web3(Web3.HTTPProvider(WEB3_PROVIDER))
 greenseed_contract = w3.eth.contract(address=GREENSEED_CONTRACT_ADDRESS, abi=GREENSEED_ABI)
@@ -77,6 +77,37 @@ def send_greenseed(to_address, amount):
     amount_wei = int(amount * (10 ** 18))
     nonce = w3.eth.get_transaction_count(backend_wallet.address)
     tx = greenseed_contract.functions.transfer(to_address, amount_wei).build_transaction({
+        "from": backend_wallet.address,
+        "nonce": nonce,
+        "gas": 100000,
+        "gasPrice": w3.to_wei("5", "gwei"),
+    })
+    signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    return tx_hash.hex()
+
+# --- Configuración de contrato PYUSD ---
+PYUSD_CONTRACT_ADDRESS = "0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9"  # Reemplaza con la dirección completa
+PYUSD_ABI = [
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "to", "type": "address"},
+            {"name": "amount", "type": "uint256"}
+        ],
+        "name": "transfer",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function"
+    }
+]
+PYUSD_DECIMALS = 18  # PYUSD es un ERC-20 estándar
+
+pyusd_contract = w3.eth.contract(address=PYUSD_CONTRACT_ADDRESS, abi=PYUSD_ABI)
+
+def send_pyusd(to_address, amount_pyusd):
+    amount_wei = int(amount_pyusd * (10 ** PYUSD_DECIMALS))
+    nonce = w3.eth.get_transaction_count(backend_wallet.address)
+    tx = pyusd_contract.functions.transfer(to_address, amount_wei).build_transaction({
         "from": backend_wallet.address,
         "nonce": nonce,
         "gas": 100000,
@@ -140,8 +171,8 @@ def deposit():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-    # Guarda el depósito en eco_transactions
-    result = supabase_client.table("eco_transactions").insert({
+    # Guarda el depósito en gseed_transactions
+    result = supabase_client.table("gseed_transactions").insert({
         "wallet_id": wallet,
         "material_type": material,
         "gseed_amount": gseed_amount,
@@ -155,6 +186,74 @@ def deposit():
         "transaction_hash": tx_hash,
         "db_result": result.data
     })
+
+@app.route('/swap', methods=['POST'])
+def swap_gseed_to_pyusd():
+    data = request.get_json()
+    wallet = data.get("wallet")
+    gseed_amount = data.get("gseed_amount")
+
+    if not wallet or not gseed_amount or float(gseed_amount) <= 0:
+        return jsonify({"success": False, "error": "Datos inválidos"}), 400
+
+    # Calcula el monto de PYUSD (1 GSEED = 0.5 PYUSD)
+    pyusd_amount = float(gseed_amount) * 0.5
+    exchange_rate = 0.5
+
+    # Realiza la transacción de PYUSD y obtiene el hash
+    try:
+        tx_hash = send_pyusd(wallet, pyusd_amount)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    # Guarda el swap en la tabla swaps
+    result = supabase_client.table("swaps").insert({
+        "wallet_id": wallet,
+        "gseed_amount": gseed_amount,
+        "pyusd_amount": pyusd_amount,
+        "exchange_rate": exchange_rate,
+        "swap_type": "manual",
+        "transaction_hash": tx_hash
+    }).execute()
+
+    return jsonify({
+        "success": True,
+        "wallet": wallet,
+        "gseed_amount": gseed_amount,
+        "pyusd_amount": pyusd_amount,
+        "exchange_rate": exchange_rate,
+        "transaction_hash": tx_hash,
+        "db_result": result.data
+    })
+
+@app.route('/send_gseed', methods=['POST'])
+def send_gseed_endpoint():
+    data = request.get_json()
+    to_address = data.get("to_address")
+    amount = data.get("amount")  # En GSEED (no en wei)
+
+    if not to_address or not amount or float(amount) <= 0:
+        return jsonify({"success": False, "error": "Datos inválidos"}), 400
+
+    try:
+        amount_wei = int(float(amount) * (10 ** 18))
+        nonce = w3.eth.get_transaction_count(backend_wallet.address)
+        tx = greenseed_contract.functions.transfer(to_address, amount_wei).build_transaction({
+            "from": backend_wallet.address,
+            "nonce": nonce,
+            "gas": 100000,
+            "gasPrice": w3.to_wei("5", "gwei"),
+        })
+        signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        return jsonify({
+            "success": True,
+            "to_address": to_address,
+            "amount": amount,
+            "tx_hash": tx_hash.hex()
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # Inicia el thread de captura al arrancar el servidor
 if __name__ == "__main__":

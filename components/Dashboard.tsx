@@ -51,7 +51,7 @@ export default function Dashboard({ wallet, onDisconnect }: DashboardProps) {
   const [loading, setLoading] = useState(true);
   const [realBalance, setRealBalance] = useState<string>("0");
   const [networkOk, setNetworkOk] = useState(true);
-  const [swaps, setSwaps] = useState<Swap[]>([]);
+  //const [swaps, setSwaps] = useState<Swap[]>([]);
 
   // Wagmi hooks
   const { address, isConnected } = useAccount();

@@ -73,6 +73,35 @@ export default function MaterialDeposit({ wallet, onTransactionAdded }: Material
   const [earnedAmount, setEarnedAmount] = useState(0);
   const { toast } = useToast();
 
+  // Llama al backend para hacer el swap a PYUSD
+  async function swapGseedToPyusd(walletAddress: string, gseedAmount: number) {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/swap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        wallet: walletAddress,
+        gseed_amount: gseedAmount,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Swap failed');
+    return data;
+  }
+
+  async function sendGseedToUser(walletAddress: string, gseedAmount: number) {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/send_gseed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to_address: walletAddress,
+        amount: gseedAmount,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Transferencia de GSEED fallida');
+    return data;
+  }
+
   const handleDeposit = async (materialType: string) => {
     setIsProcessing(true);
     setSelectedMaterial(materialType);
@@ -93,6 +122,28 @@ export default function MaterialDeposit({ wallet, onTransactionAdded }: Material
 
       if (error) throw error;
 
+      // --- TRANSFERENCIA REAL DE GSEED ---
+      try {
+        await sendGseedToUser(wallet.wallet_address, gseedAmount);
+      } catch (gseedError) {
+        toast({
+          title: 'Transferencia de GSEED fallida',
+          description: 'El depósito fue exitoso, pero la transferencia de GSEED real falló.',
+          variant: 'destructive',
+        });
+      }
+
+      // --- SWAP AUTOMÁTICO ---
+      try {
+        await swapGseedToPyusd(wallet.wallet_address, gseedAmount);
+      } catch (swapError) {
+        toast({
+          title: 'Swap a PYUSD fallido',
+          description: 'El depósito fue exitoso, pero el swap a PYUSD falló.',
+          variant: 'destructive',
+        });
+      }
+
       setEarnedAmount(gseedAmount);
       setShowSuccess(true);
 
@@ -106,7 +157,7 @@ export default function MaterialDeposit({ wallet, onTransactionAdded }: Material
       setTimeout(() => {
         setShowSuccess(false);
         setSelectedMaterial(null);
-      }, 3000);
+      }, 5000);
     } catch (error) {
       console.error('Error processing deposit:', error);
       toast({
@@ -150,7 +201,6 @@ export default function MaterialDeposit({ wallet, onTransactionAdded }: Material
           <CardDescription className="text-base">
             Simula el depósito de materiales reciclables y gana $GSEED al instante
           </CardDescription>
-          
         </CardHeader>
         <CardContent>
           {/* Overlay de la cámara (consumirá el stream MJPEG del backend) */}
