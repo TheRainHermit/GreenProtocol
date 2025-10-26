@@ -1,22 +1,25 @@
-import './globals.css';
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
+import ContextProvider from '../src/context'
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Green Protocol - Finanzas Regenerativas',
-  description: 'Gana GreenSeeds por reciclar y conviértelas en PYUSD. Cada acción ecológica es una semilla para un futuro verde.',
-};
+  title: 'Green Protocol - Finanzas Regenerativas para un Futuro Sostenible',
+  description: 'Transforma residuos en valor con Green Protocol. Gana $GSEED tokens por reciclar y canjéalos por recompensas. ReFi en Ethereum Sepolia Network.',
+}
 
 export default function RootLayout({
-  children,
+  children
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <html lang="es">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <ContextProvider cookies={null}>{children}</ContextProvider>
+      </body>
     </html>
-  );
+  )
 }

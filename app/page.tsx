@@ -1,37 +1,40 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { CreateWallet } from '@/components/create-wallet';
-import { WalletDashboard } from '@/components/wallet-dashboard';
-import type { Wallet } from '@/lib/supabase';
+import { useState, useEffect } from "react";
+import { supabase, type Wallet } from "@/lib/supabase";
+import WalletConnect from "@/components/WalletConnect";
+import Dashboard from "@/components/Dashboard";
+import { Toaster } from "@/components/ui/toaster";
+import { useAccount } from "wagmi";
 
 export default function Home() {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loading, setLoading] = useState(true);
+  const { isConnected } = useAccount();
 
   useEffect(() => {
-    const storedWalletId = localStorage.getItem('green_protocol_wallet_id');
-    if (storedWalletId) {
-      loadWallet(storedWalletId);
-    } else {
-      setLoading(false);
-    }
+    checkExistingWallet();
   }, []);
 
-  const loadWallet = async (walletId: string) => {
+  const checkExistingWallet = async () => {
     try {
-      const { supabase } = await import('@/lib/supabase');
-      const { data, error } = await supabase
-        .from('wallets')
-        .select('*')
-        .eq('id', walletId)
-        .maybeSingle();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      if (data) {
-        setWallet(data);
+      if (user) {
+        const { data: walletData } = await supabase
+          .from("wallets")
+          .select()
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (walletData) {
+          setWallet(walletData);
+        }
       }
     } catch (error) {
-      console.error('Error loading wallet:', error);
+      console.error("Error checking wallet:", error);
     } finally {
       setLoading(false);
     }
@@ -39,27 +42,31 @@ export default function Home() {
 
   const handleWalletCreated = (newWallet: Wallet) => {
     setWallet(newWallet);
-    localStorage.setItem('green_protocol_wallet_id', newWallet.id);
   };
 
-  const handleWalletUpdate = (updatedWallet: Wallet) => {
-    setWallet(updatedWallet);
+  const handleDisconnect = () => {
+    setWallet(null);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-emerald-600 border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-gray-600">Cargando Green Protocol...</p>
+          <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando Green Protocol...</p>
         </div>
       </div>
     );
   }
 
-  if (!wallet) {
-    return <CreateWallet onWalletCreated={handleWalletCreated} />;
-  }
-
-  return <WalletDashboard wallet={wallet} onWalletUpdate={handleWalletUpdate} />;
+  return (
+  <>
+    {wallet && isConnected ? (
+      <Dashboard wallet={wallet} onDisconnect={handleDisconnect} />
+    ) : (
+      <WalletConnect onWalletCreated={handleWalletCreated} />
+    )}
+    <Toaster />
+  </>
+);
 }

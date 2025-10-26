@@ -1,0 +1,15 @@
+flask==2.3.3
+opencv-python==4.8.1.78
+ultralytics==8.0.186
+numpy>=1.26.0
+cvzone==1.5.6
+torch>=2.1.0
+torchvision>=0.16.0
+Pillow>=10.0.0
+mediapipe==0.10.14
+qrcode[pil]==7.4.2
+Pillow==10.1.0
+flask-cors
+web3
+supabase
+dotenv
